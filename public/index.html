@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DataBrain</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0b0f1a; color: #e6e9f0; }
+  header { padding: 24px 20px; border-bottom: 1px solid #1e2536; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-size: 20px; font-weight: 700; background: linear-gradient(90deg, #7c5cff, #22d3ee); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 80px; }
+  .hero { text-align: center; padding: 40px 16px; }
+  .hero h1 { font-size: 28px; margin-bottom: 8px; }
+  .hero p { color: #9aa3b8; }
+  .grid { display: grid; gap: 16px; grid-template-columns: 1fr; margin-top: 24px; }
+  @media (min-width: 700px) { .grid { grid-template-columns: 1fr 1fr; } }
+  .card { background: #131a2b; border: 1px solid #1e2536; border-radius: 14px; padding: 20px; }
+  .card h2 { font-size: 15px; color: #9aa3b8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+  .card .big { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+  button { background: linear-gradient(90deg, #7c5cff, #22d3ee); border: none; color: #0b0f1a; font-weight: 600; padding: 10px 16px; border-radius: 10px; cursor: pointer; font-size: 14px; margin-top: 8px; }
+  button:active { opacity: 0.85; }
+  input { background: #0b0f1a; border: 1px solid #2a3148; color: #e6e9f0; padding: 10px 12px; border-radius: 10px; font-size: 14px; margin-bottom: 8px; width: 100%; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  ul { list-style: none; margin-top: 8px; }
+  li { padding: 8px 0; border-bottom: 1px solid #1e2536; font-size: 14px; color: #cdd3e0; }
+  .badge { display: inline-block; background: #1e2536; color: #7c5cff; font-size: 11px; padding: 2px 8px; border-radius: 100px; margin-right: 6px; }
+  .insight-box { background: #0b0f1a; border: 1px solid #2a3148; border-radius: 10px; padding: 14px; margin-top: 12px; font-size: 14px; line-height: 1.5; color: #cdd3e0; }
+  .muted { color: #6b7280; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="loginScreen" style="max-width:400px;margin:80px auto;padding:24px;">
+  <h1 style="text-align:center;margin-bottom:20px;">DataBrain Login</h1>
+  <input id="loginEmail" placeholder="Email" style="width:100%;" />
+  <input id="loginPassword" type="password" placeholder="Password" style="width:100%;" />
+  <button onclick="login()" style="width:100%;">Log In</button>
+  <p id="loginError" style="color:#ff6b6b;margin-top:8px;"></p>
+</div>
+
+<header>
+  <div class="logo">DataBrain</div>
+  <div class="muted" id="orgLabel">Org #1</div>
+<button onclick="logout()" style="width:auto;padding:8px 16px;font-size:13px;">Log Out</button>
+</header>
+
+<main id="dashboard" style="display:none;">
+  <div class="hero">
+    <h1>Your business, understood.</h1>
+    <p>Connect data, store what matters, get real answers.</p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Connectors</h2>
+      <div id="connectorsList"><p class="muted">Loading...</p></div>
+      <div class="row">
+        <input id="connectorType" placeholder="type e.g. stripe" />
+        <input id="connectorName" placeholder="name e.g. Stripe - Prod" />
+<input id="connectorCredential" type="password" placeholder="API key (optional)" />
+      </div>
+      <button onclick="createConnector()">Add Connector</button>
+    </div>
+
+    <div class="card">
+      <h2>Business Memory</h2>
+      <div id="memoryList"><p class="muted">Loading...</p></div>
+      <div class="row">
+        <input id="memCategory" placeholder="category e.g. metric" />
+        <input id="memKey" placeholder="key e.g. MRR" />
+        <input id="memValue" placeholder="value" />
+      </div>
+      <button onclick="createMemory()">Save Memory</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h2>AI Insight</h2>
+    <button onclick="getInsight()">Generate Insight</button>
+    <div class="insight-box" id="insightBox">Tap "Generate Insight" to analyze this org's data.</div>
+  </div>
+</main>
+
+<script>
+  let orgId = null;
+
+  async function logout() {
+    await fetch('/auth/logout', { method: 'POST' });
+    document.getElementById('dashboard').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'block';
+  }
+
+  async function login() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+    const res = await fetch('/auth/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email, password}) });
+    if (!res.ok) { document.getElementById('loginError').textContent = 'Invalid email or password'; return; }
+    checkAuth();
+  }
+
+  async function checkAuth() {
+    const res = await fetch('/auth/me');
+    if (!res.ok) return;
+    const data = await res.json();
+    orgId = data.orgId;
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('orgLabel').textContent = 'Org #' + orgId;
+    loadConnectors();
+    loadMemory();
+  }
+
+  checkAuth();
+
+  async function loadConnectors() {
+    const res = await fetch(`/connectors/${orgId}`);
+    const data = await res.json();
+    const el = document.getElementById('connectorsList');
+    if (data.length === 0) { el.innerHTML = '<p class="muted">No connectors yet.</p>'; return; }
+    el.innerHTML = '<ul>' + data.map(c =>
+      `<li><span class="badge">${c.type}</span>${c.name} — ${c.status}</li>`
+    ).join('') + '</ul>';
+  }
+
+  async function loadMemory() {
+    const res = await fetch(`/memory/${orgId}`);
+    const data = await res.json();
+    const el = document.getElementById('memoryList');
+    if (data.length === 0) { el.innerHTML = '<p class="muted">No memory entries yet.</p>'; return; }
+    el.innerHTML = '<ul>' + data.map(m =>
+      `<li><span class="badge">${m.category}</span><b>${m.key}</b>: ${m.value}</li>`
+    ).join('') + '</ul>';
+  }
+
+  async function createConnector() {
+    const type = document.getElementById('connectorType').value.trim();
+    const name = document.getElementById('connectorName').value.trim();
+    const credential = document.getElementById('connectorCredential').value.trim();
+    if (!type || !name) return alert('Fill both fields');
+    const credParam = credential ? `?credential=${encodeURIComponent(credential)}` : '';
+    await fetch(`/connectors/create/${orgId}/${encodeURIComponent(type)}/${encodeURIComponent(name)}${credParam}`);
+    document.getElementById('connectorType').value = '';
+    document.getElementById('connectorName').value = '';
+    document.getElementById('connectorCredential').value = '';
+    loadConnectors();
+  }
+
+  async function createMemory() {
+    const category = document.getElementById('memCategory').value.trim();
+    const key = document.getElementById('memKey').value.trim();
+    const value = document.getElementById('memValue').value.trim();
+    if (!category || !key || !value) return alert('Fill all fields');
+    await fetch(`/memory/create/${orgId}/${encodeURIComponent(category)}/${encodeURIComponent(key)}/${encodeURIComponent(value)}`);
+    document.getElementById('memCategory').value = '';
+    document.getElementById('memKey').value = '';
+    document.getElementById('memValue').value = '';
+    loadMemory();
+  }
+
+  async function getInsight() {
+    const box = document.getElementById('insightBox');
+    box.textContent = 'Thinking...';
+    const res = await fetch(`/agent/insight/${orgId}`);
+    const data = await res.json();
+    box.textContent = data.insight || 'No insight available yet — add a connector and sync data first.';
+  }
+
+</script>
+
+</body>
+</html>
