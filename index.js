@@ -316,10 +316,13 @@ app.get('/agent/insight/:orgId', requireAuth, requireOrgAccess, async (req, res)
                                                     let totalRevenue = 0;
                                                         const descriptions = [];
                                                             let chargeCount = 0;
+  const dailyBreakdown = {};
     dataResult.rows.forEach(row => {
   if (row.data.created && row.data.amount) {
     chargeCount++;
                                                                           totalRevenue += row.data.amount;
+      const day = new Date(row.data.created * 1000).toISOString().split('T')[0];
+      dailyBreakdown[day] = (dailyBreakdown[day] || 0) + row.data.amount;
                                                                                 }
                                                                                       if (row.data.description) {
                                                                                               descriptions.push(row.data.description);
@@ -327,6 +330,9 @@ app.get('/agent/insight/:orgId', requireAuth, requireOrgAccess, async (req, res)
                                                                                                         });
 
                                                                                                             const revenueInDollars = (totalRevenue / 100).toFixed(2);
+    Object.keys(dailyBreakdown).forEach(day => {
+      dailyBreakdown[day] = (dailyBreakdown[day] / 100).toFixed(2);
+    });
 
                                                                                                                 const memoryNotes = memoryResult.rows.map(
                                                                                                                       m => `${m.key}: ${m.value}`
@@ -338,6 +344,7 @@ app.get('/agent/insight/:orgId', requireAuth, requireOrgAccess, async (req, res)
                                                                                                                                         orgId,
                                                                                                                                               totalRevenue: revenueInDollars,
                                                                                                                                                     transactionCount: chargeCount,
+    dailyBreakdown,
                                                                                                                                                           insight
                                                                                                                                                               });
                                                                                                                                                                 } catch (err) {
