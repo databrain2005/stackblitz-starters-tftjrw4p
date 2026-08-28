@@ -1,5 +1,9 @@
 require('dotenv').config();
 const express = require('express');
+const multer = require('multer');
+const csv = require('csv-parser');
+const { Readable } = require('stream');
+const upload = multer({ storage: multer.memoryStorage() });
 const { Pool } = require('pg');
 
 const app = express();
@@ -225,6 +229,43 @@ app.get('/connectors/:connectorId/sync-real-stripe', requireAuth, async (req, re
 });
 
 
+
+app.post('/connectors/:connectorId/upload-csv', requireAuth, upload.single('file'), async (req, res) => {
+  try {
+    const { connectorId } = req.params;
+    const connResult = await pool.query('SELECT org_id FROM connectors WHERE id = $1', [connectorId]);
+    if (!connResult.rows[0]) {
+      return res.status(404).send('Connector not found');
+    }
+    const { org_id } = connResult.rows[0];
+    if (org_id !== req.session.orgId) {
+      return res.status(403).json({ error: 'Access denied to this connector' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const rows = [];
+    const stream = Readable.from(req.file.buffer.toString());
+    stream.pipe(csv())
+      .on('data', (row) => rows.push(row))
+      .on('end', async () => {
+        try {
+          for (const row of rows) {
+            await pool.query(
+              'INSERT INTO connector_data (connector_id, org_id, data) VALUES ($1, $2, $3)',
+              [connectorId, org_id, JSON.stringify(row)]
+            );
+          }
+          res.json({ synced: rows.length });
+        } catch (innerErr) {
+          res.status(500).json({ error: 'Error saving CSV rows: ' + innerErr.message });
+        }
+      });
+  } catch (err) {
+    res.status(500).json({ error: 'Error uploading CSV: ' + err.message });
+  }
+});
 app.delete('/connectors/:connectorId', requireAuth, async (req, res) => {
   try {
     const { connectorId } = req.params;
