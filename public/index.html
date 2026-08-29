@@ -118,7 +118,7 @@
     const el = document.getElementById('connectorsList');
     if (data.length === 0) { el.innerHTML = '<p class="muted">No connectors yet.</p>'; return; }
     el.innerHTML = '<ul>' + data.map(c =>
-      `<li><span class="badge">${c.type}</span>${c.name} — ${c.status}</li>`
+      `<li><span class="badge">${c.type}</span>${c.name} — ${c.status} <input type="file" id="csvFile_${c.id}" accept=".csv" style="max-width:110px;"><button onclick="uploadCsv(${c.id})">Upload CSV</button></li>`
     ).join('') + '</ul>';
   }
 
@@ -132,7 +132,25 @@
     ).join('') + '</ul>';
   }
 
-  async function createConnector() {
+  
+    async function uploadCsv(connectorId) {
+      const fileInput = document.getElementById('csvFile_' + connectorId);
+      const file = fileInput.files[0];
+      if (!file) return alert('Choose a CSV file first');
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`/connectors/${connectorId}/upload-csv`, { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.synced !== undefined) {
+        alert('Uploaded! ' + data.synced + ' rows synced.');
+        loadConnectors();
+      } else {
+        alert('Error: ' + (data.error || 'Unknown error'));
+      }
+      fileInput.value = '';
+    }
+
+    async function createConnector() {
     const type = document.getElementById('connectorType').value.trim();
     const name = document.getElementById('connectorName').value.trim();
     const credential = document.getElementById('connectorCredential').value.trim();

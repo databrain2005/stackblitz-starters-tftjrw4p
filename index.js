@@ -394,6 +394,75 @@ app.get('/agent/insight/:orgId', requireAuth, requireOrgAccess, async (req, res)
                                                                                                                                                                       });
 
 
+
+app.get('/agent/finance/:orgId', requireAuth, requireOrgAccess, async (req, res) => {
+  try {
+    const { orgId } = req.params;
+
+    const connectorsResult = await pool.query(
+      'SELECT id, type, name FROM connectors WHERE org_id = $1',
+      [orgId]
+    );
+    const connectorMap = {};
+    connectorsResult.rows.forEach(c => {
+      connectorMap[c.id] = c.type;
+    });
+
+    const dataResult = await pool.query(
+      'SELECT * FROM connector_data WHERE org_id = $1',
+      [orgId]
+    );
+
+    const memoryResult = await pool.query(
+      'SELECT * FROM business_memory WHERE org_id = $1',
+      [orgId]
+    );
+
+    let totalRevenue = 0;
+    const bySource = {};
+
+    dataResult.rows.forEach(row => {
+      const type = connectorMap[row.connector_id] || 'unknown';
+      if (!bySource[type]) {
+        bySource[type] = { revenue: 0, count: 0 };
+      }
+
+      let amount = 0;
+      const amountField = ['amount', 'revenue', 'total', 'price'].find(
+        f => row.data[f] !== undefined && !isNaN(parseFloat(row.data[f]))
+      );
+      if (amountField) {
+        const rawAmount = parseFloat(row.data[amountField]);
+        amount = (amountField === 'amount' && row.data.created) ? rawAmount / 100 : rawAmount;
+      }
+
+      bySource[type].revenue += amount;
+      bySource[type].count += 1;
+      totalRevenue += amount;
+    });
+
+    Object.keys(bySource).forEach(type => {
+      bySource[type].revenue = bySource[type].revenue.toFixed(2);
+    });
+
+    const memoryNotes = memoryResult.rows.map(m => `${m.key}: ${m.value}`);
+
+    const sourceSummary = Object.keys(bySource)
+      .map(type => `$${bySource[type].revenue} from ${type} (${bySource[type].count} records)`)
+      .join(', ');
+
+    const summary = `Total revenue across all sources: $${totalRevenue.toFixed(2)}. Breakdown: ${sourceSummary || 'no data yet'}. ${memoryNotes.length > 0 ? 'Notes: ' + memoryNotes.join('; ') : ''}`;
+
+    res.json({
+      orgId,
+      totalRevenue: totalRevenue.toFixed(2),
+      bySource,
+      summary
+    });
+  } catch (err) {
+    res.status(500).send(`Error generating finance summary: ${err.message}`);
+  }
+});
   function requireAuth(req, res, next) {                                                                                                                                                           
   if (!req.session.userId) {
     return res.status(401).json({ error: "Not logged in" });
