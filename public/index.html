@@ -123,7 +123,7 @@
     const el = document.getElementById('connectorsList');
     if (data.length === 0) { el.innerHTML = '<p class="muted">No connectors yet.</p>'; return; }
     el.innerHTML = '<ul>' + data.map(c =>
-      `<li><span class="badge">${c.type}</span>${c.name} — ${c.status} <input type="file" id="csvFile_${c.id}" accept=".csv" style="max-width:110px;"><button onclick="uploadCsv(${c.id})">Upload CSV</button></li>`
+      `<li><span class="badge">${c.type}</span>${c.name} — ${c.status} <input type="file" id="csvFile_${c.id}" accept=".csv" style="max-width:110px;"><button onclick="uploadCsv(${c.id})">Upload CSV</button> <input type="text" id="sheetInput_${c.id}" placeholder="Sheet ID or URL" style="max-width:140px;"><button onclick="syncGoogleSheet(${c.id})">Sync Sheet</button></li>`
     ).join('') + '</ul>';
   }
 
@@ -138,7 +138,23 @@
   }
 
   
-    async function uploadCsv(connectorId) {
+    
+async function syncGoogleSheet(connectorId) {
+  const input = document.getElementById('sheetInput_' + connectorId);
+  let value = input.value.trim();
+  let sheetId = value;
+  const match = value.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (match) sheetId = match[1];
+  if (!sheetId) { alert('Enter a Sheet ID or URL'); return; }
+  const res = await fetch('/connectors/' + connectorId + '/sync-google-sheet/' + sheetId);
+  const data = await res.json();
+  if (data.error) { alert('Error: ' + data.error); return; }
+  alert('Synced! ' + data.synced + ' rows synced.');
+  input.value = '';
+  loadConnectors();
+}
+
+async function uploadCsv(connectorId) {
       const fileInput = document.getElementById('csvFile_' + connectorId);
       const file = fileInput.files[0];
       if (!file) return alert('Choose a CSV file first');
