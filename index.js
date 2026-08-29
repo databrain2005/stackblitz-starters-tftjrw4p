@@ -463,6 +463,109 @@ app.get('/agent/finance/:orgId', requireAuth, requireOrgAccess, async (req, res)
     res.status(500).send(`Error generating finance summary: ${err.message}`);
   }
 });
+
+app.get('/agent/sales/:orgId', requireAuth, requireOrgAccess, async (req, res) => {
+  try {
+    const { orgId } = req.params;
+
+    const dataResult = await pool.query(
+      'SELECT * FROM connector_data WHERE org_id = $1 ORDER BY synced_at ASC',
+      [orgId]
+    );
+
+    const memoryResult = await pool.query(
+      'SELECT * FROM business_memory WHERE org_id = $1',
+      [orgId]
+    );
+
+    const transactions = [];
+
+    dataResult.rows.forEach(row => {
+      const amountField = ['amount', 'revenue', 'total', 'price'].find(
+        f => row.data[f] !== undefined && !isNaN(parseFloat(row.data[f]))
+      );
+      if (!amountField) return;
+
+      let amount = parseFloat(row.data[amountField]);
+      if (amountField === 'amount' && row.data.created) {
+        amount = amount / 100;
+      }
+
+      const label = row.data.description || row.data.product || row.data.name || 'Unlabeled';
+
+      let txDate;
+      if (row.data.created) {
+        txDate = new Date(row.data.created * 1000);
+      } else if (row.data.date) {
+        txDate = new Date(row.data.date);
+      } else {
+        txDate = new Date(row.synced_at);
+      }
+
+      transactions.push({ amount, label, date: txDate });
+    });
+
+    const totalRevenue = transactions.reduce((sum, t) => sum + t.amount, 0);
+    const transactionCount = transactions.length;
+    const avgTransactionValue = transactionCount > 0 ? totalRevenue / transactionCount : 0;
+
+    const byLabel = {};
+    transactions.forEach(t => {
+      if (!byLabel[t.label]) byLabel[t.label] = { revenue: 0, count: 0 };
+      byLabel[t.label].revenue += t.amount;
+      byLabel[t.label].count += 1;
+    });
+
+    const topPerformers = Object.entries(byLabel)
+      .map(([label, stats]) => ({ label, revenue: stats.revenue.toFixed(2), count: stats.count }))
+      .sort((a, b) => parseFloat(b.revenue) - parseFloat(a.revenue))
+      .slice(0, 5);
+
+    const sortedByDate = [...transactions].sort((a, b) => a.date - b.date);
+    const midpoint = Math.floor(sortedByDate.length / 2);
+    const firstHalf = sortedByDate.slice(0, midpoint);
+    const secondHalf = sortedByDate.slice(midpoint);
+    const firstHalfRevenue = firstHalf.reduce((sum, t) => sum + t.amount, 0);
+    const secondHalfRevenue = secondHalf.reduce((sum, t) => sum + t.amount, 0);
+
+    let momentum = 'insufficient data';
+    let momentumPercent = null;
+    if (firstHalf.length > 0 && secondHalf.length > 0) {
+      if (firstHalfRevenue === 0) {
+        momentum = secondHalfRevenue > 0 ? 'up' : 'flat';
+      } else {
+        momentumPercent = (((secondHalfRevenue - firstHalfRevenue) / firstHalfRevenue) * 100).toFixed(1);
+        momentum = momentumPercent > 5 ? 'up' : momentumPercent < -5 ? 'down' : 'flat';
+      }
+    }
+
+    const sortedByAmount = [...transactions].sort((a, b) => b.amount - a.amount);
+    const top20Count = Math.max(1, Math.ceil(transactions.length * 0.2));
+    const top20Revenue = sortedByAmount.slice(0, top20Count).reduce((sum, t) => sum + t.amount, 0);
+    const concentrationPercent = totalRevenue > 0 ? ((top20Revenue / totalRevenue) * 100).toFixed(1) : 0;
+    const concentration = concentrationPercent > 60 ? 'high (revenue concentrated in a few transactions)' : 'low (revenue spread across many transactions)';
+
+    const memoryNotes = memoryResult.rows.map(m => `${m.key}: ${m.value}`);
+
+    const topLabel = topPerformers.length > 0 ? topPerformers[0].label : 'none yet';
+    const momentumText = momentumPercent !== null ? `${momentum} (${momentumPercent}% change)` : momentum;
+
+    const summary = `Sales momentum: ${momentumText}. Average transaction value: $${avgTransactionValue.toFixed(2)} across ${transactionCount} transactions. Revenue concentration: ${concentration} — top 20% of transactions account for ${concentrationPercent}% of revenue. Top performer: ${topLabel}. ${memoryNotes.length > 0 ? 'Notes: ' + memoryNotes.join('; ') : ''}`;
+
+    res.json({
+      orgId,
+      totalRevenue: totalRevenue.toFixed(2),
+      transactionCount,
+      avgTransactionValue: avgTransactionValue.toFixed(2),
+      momentum: momentumText,
+      concentrationPercent,
+      topPerformers,
+      summary
+    });
+  } catch (err) {
+    res.status(500).send(`Error generating sales summary: ${err.message}`);
+  }
+});
   function requireAuth(req, res, next) {                                                                                                                                                           
   if (!req.session.userId) {
     return res.status(401).json({ error: "Not logged in" });
