@@ -1,4 +1,7 @@
-◇ injected env (2) from .env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+◇ injected env (2) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
 DataBrain server listening on port 3000
+CHECKING ORG ACCESS: 1 session userId: 2
+CHECKING ORG ACCESS: 1 session userId: 2
+CHECKING ORG ACCESS: 1 session userId: 2
 CHECKING ORG ACCESS: 1 session userId: 2
 CHECKING ORG ACCESS: 1 session userId: 2

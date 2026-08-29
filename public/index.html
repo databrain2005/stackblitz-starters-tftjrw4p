@@ -75,22 +75,15 @@
   </div>
 
   <div class="card" style="margin-top:16px;">
-    <h2>AI Insight</h2>
-    <button onclick="getInsight()">Generate Insight</button>
-    <div class="insight-box" id="insightBox">Tap "Generate Insight" to analyze this org's data.</div>
-  </div>
-
-  <div class="card">
-    <h2>FINANCE</h2>
-    <button onclick="getFinance()">Generate Finance Summary</button>
-    <div class="insight-box" id="financeBox">Tap "Generate Finance Summary" to see revenue across all sources.</div>
-  </div>
-
-  <div class="card">
-    <h2>SALES</h2>
-    <button onclick="getSales()">Generate Sales Summary</button>
-    <div class="insight-box" id="salesBox">Tap "Generate Sales Summary" to see momentum, concentration, and top performers.</div>
-  </div>
+    <h2>AGENTS</h2>
+    <select id="agentSelect" style="width:100%; padding:10px; margin-bottom:10px; border-radius:8px; background:#1a1f2e; color:#fff; border:1px solid #333;">
+      <option value="insight">Insight</option>
+      <option value="finance">Finance</option>
+      <option value="sales">Sales</option>
+    </select>
+    <button onclick="runAgent()">Generate Summary</button>
+    <div class="insight-box" id="agentBox">Pick an agent and tap "Generate Summary" to see the analysis.</div>
+    </div>
 </main>
 
 <script>
@@ -187,28 +180,13 @@
     loadMemory();
   }
 
-  async function getInsight() {
-    const box = document.getElementById('insightBox');
-    box.textContent = 'Thinking...';
-    const res = await fetch(`/agent/insight/${orgId}`);
-    const data = await res.json();
-    box.textContent = data.insight || 'No insight available yet — add a connector and sync data first.';
-  }
-
-    async function getFinance() {
-      const box = document.getElementById('financeBox');
+  async function runAgent() {
+      const agent = document.getElementById('agentSelect').value;
+      const box = document.getElementById('agentBox');
       box.textContent = 'Thinking...';
-      const res = await fetch(`/agent/finance/${orgId}`);
+      const res = await fetch(`/agent/${agent}/${orgId}`);
       const data = await res.json();
-      box.textContent = data.summary || 'No finance data available yet.';
-    }
-
-    async function getSales() {
-      const box = document.getElementById('salesBox');
-      box.textContent = 'Thinking...';
-      const res = await fetch(`/agent/sales/${orgId}`);
-      const data = await res.json();
-      box.textContent = data.summary || 'No sales data available yet.';
+      box.textContent = data.summary || data.insight || 'No data available yet.';
     }
 
 </script>
