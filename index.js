@@ -5,6 +5,7 @@ const csv = require('csv-parser');
 const { Readable } = require('stream');
 const upload = multer({ storage: multer.memoryStorage() });
 const { Pool } = require('pg');
+const { google } = require('googleapis');
 
 const app = express();
 app.use(express.json());
@@ -279,6 +280,57 @@ app.delete('/connectors/:connectorId', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Error deleting connector: ' + err.message });
   }
 });
+app.get('/connectors/:connectorId/sync-google-sheet/:sheetId', requireAuth, async (req, res) => {
+    try {
+        const { connectorId, sheetId } = req.params;
+
+            const connectorResult = await pool.query(
+                  'SELECT * FROM connectors WHERE id = $1 AND org_id = $2',
+                        [connectorId, req.session.orgId]
+                            );
+                                if (connectorResult.rows.length === 0) {
+                                      return res.status(403).json({ error: 'Connector not found or access denied' });
+                                          }
+
+                                              const credentials = JSON.parse(process.env.GOOGLE_SHEETS_CREDENTIALS);
+                                                  const auth = new google.auth.GoogleAuth({
+                                                        credentials,
+                                                              scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+                                                                  });
+                                                                      const sheets = google.sheets({ version: 'v4', auth });
+
+                                                                          const response = await sheets.spreadsheets.values.get({
+                                                                                spreadsheetId: sheetId,
+                                                                                      range: 'A1:Z1000',
+                                                                                          });
+
+                                                                                              const rows = response.data.values || [];
+                                                                                                  if (rows.length < 2) {
+                                                                                                        return res.json({ synced: 0, message: 'No data rows found' });
+                                                                                                            }
+
+                                                                                                                const headers = rows[0];
+                                                                                                                    const dataRows = rows.slice(1);
+
+                                                                                                                        let syncedCount = 0;
+                                                                                                                            for (const row of dataRows) {
+                                                                                                                                  const rowObject = {};
+                                                                                                                                        headers.forEach((header, i) => {
+                                                                                                                                                rowObject[header] = row[i] || null;
+                                                                                                                                                      });
+                                                                                                                                                            await pool.query(
+                                                                                                                                                                    'INSERT INTO connector_data (connector_id, org_id, data) VALUES ($1, $2, $3)',
+                                                                                                                                                                            [connectorId, req.session.orgId, JSON.stringify(rowObject)]
+                                                                                                                                                                                  );
+                                                                                                                                                                                        syncedCount++;
+                                                                                                                                                                                            }
+
+                                                                                                                                                                                                res.json({ synced: syncedCount });
+                                                                                                                                                                                                  } catch (error) {
+                                                                                                                                                                                                      console.error('Google Sheets sync error:', error);
+                                                                                                                                                                                                          res.status(500).json({ error: error.message });
+                                                                                                                                                                                                            }
+                                                                                                                                                                                                            });
 
                                                                                                                                                                           app.get('/connectors/:orgId', requireAuth, requireOrgAccess, async (req, res) => {
 
