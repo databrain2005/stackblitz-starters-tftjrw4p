@@ -79,6 +79,12 @@
     <button onclick="getInsight()">Generate Insight</button>
     <div class="insight-box" id="insightBox">Tap "Generate Insight" to analyze this org's data.</div>
   </div>
+
+  <div class="card">
+    <h2>FINANCE</h2>
+    <button onclick="getFinance()">Generate Finance Summary</button>
+    <div class="insight-box" id="financeBox">Tap "Generate Finance Summary" to see revenue across all sources.</div>
+  </div>
 </main>
 
 <script>
@@ -182,6 +188,14 @@
     const data = await res.json();
     box.textContent = data.insight || 'No insight available yet — add a connector and sync data first.';
   }
+
+    async function getFinance() {
+      const box = document.getElementById('financeBox');
+      box.textContent = 'Thinking...';
+      const res = await fetch(`/agent/finance/${orgId}`);
+      const data = await res.json();
+      box.textContent = data.summary || 'No finance data available yet.';
+    }
 
 </script>
 

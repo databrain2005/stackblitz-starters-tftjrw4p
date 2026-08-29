@@ -1,3 +1,4 @@
-◇ injected env (2) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+◇ injected env (2) from .env // tip: ⌘ override existing { override: true }
 DataBrain server listening on port 3000
+CHECKING ORG ACCESS: 1 session userId: 2
 CHECKING ORG ACCESS: 1 session userId: 2
